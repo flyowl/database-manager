@@ -1,3 +1,5 @@
+
+
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { 
   DatabaseTable, 
@@ -5,7 +7,8 @@ import {
   TabOption, 
   ChatMessage, 
   QueryResult,
-  SavedQuery
+  SavedQuery,
+  DatabaseModule
 } from '../types';
 import Sidebar from './components/Sidebar';
 import SQLEditor, { SQLEditorHandle } from './components/SQLEditor';
@@ -13,68 +16,10 @@ import DataGrid from './components/DataGrid';
 import ERDiagram from './components/ERDiagram';
 import AIChat from './components/AIChat';
 import FieldManager from './components/FieldManager';
-import { Database, Table, Code, FileText, Network, PanelRightClose, PanelRightOpen, GripVertical, GripHorizontal } from 'lucide-react';
+import ModuleModal from './components/ModuleModal';
+import { Code, FileText, Network, PanelRightClose, PanelRightOpen, Table, Layers } from 'lucide-react';
 import { Node, Edge, useNodesState, useEdgesState, addEdge, Connection } from 'reactflow';
-
-// --- MOCK DATA ---
-const MOCK_TABLES: DatabaseTable[] = [
-  {
-    id: 'users',
-    name: 'users',
-    cnName: '用户表',
-    description: '存储系统所有用户的基本信息',
-    parentId: 'folder-1',
-    columns: [
-      { name: 'id', type: 'INT', isPrimaryKey: true, cnName: '用户ID', description: '主键自增' },
-      { name: 'username', type: 'VARCHAR(50)', cnName: '用户名', description: '登录账号' },
-      { name: 'email', type: 'VARCHAR(100)', cnName: '邮箱', description: '联系邮箱' },
-      { name: 'created_at', type: 'TIMESTAMP', cnName: '创建时间', description: '注册时间' }
-    ]
-  },
-  {
-    id: 'orders',
-    name: 'orders',
-    cnName: '订单表',
-    description: '用户的购买记录',
-    parentId: 'folder-1',
-    columns: [
-      { name: 'id', type: 'INT', isPrimaryKey: true, cnName: '订单ID', description: '' },
-      { name: 'user_id', type: 'INT', isForeignKey: true, cnName: '用户ID', description: '关联 users 表' },
-      { name: 'total_amount', type: 'DECIMAL', cnName: '总金额', description: '' },
-      { name: 'status', type: 'VARCHAR(20)', cnName: '状态', description: 'pending, paid, shipped' }
-    ]
-  },
-  {
-    id: 'products',
-    name: 'products',
-    cnName: '商品表',
-    description: '库存商品信息',
-    parentId: 'folder-2',
-    columns: [
-        { name: 'id', type: 'INT', isPrimaryKey: true, cnName: '商品ID', description: '' },
-        { name: 'name', type: 'VARCHAR(100)', cnName: '商品名称', description: '' },
-        { name: 'price', type: 'DECIMAL', cnName: '价格', description: '' }
-    ]
-  },
-  {
-    id: 'order_items',
-    name: 'order_items',
-    cnName: '订单明细表',
-    description: '',
-    parentId: 'folder-1',
-    columns: [
-        { name: 'id', type: 'INT', isPrimaryKey: true, cnName: 'ID', description: '' },
-        { name: 'order_id', type: 'INT', isForeignKey: true, cnName: '订单ID', description: '' },
-        { name: 'product_id', type: 'INT', isForeignKey: true, cnName: '商品ID', description: '' },
-        { name: 'quantity', type: 'INT', cnName: '数量', description: '' }
-    ]
-  }
-];
-
-const MOCK_FOLDERS: Folder[] = [
-  { id: 'folder-1', name: 'Sales Data', isOpen: true },
-  { id: 'folder-2', name: 'Inventory', isOpen: false }
-];
+import { MOCK_TABLES, MOCK_DB_FOLDERS, MOCK_MODULES } from '../data/mockData';
 
 const MOCK_SAVED_QUERIES: SavedQuery[] = [
     { id: '1', name: '查询活跃用户', sql: "SELECT * FROM users WHERE status = 'active';", createdAt: new Date() },
@@ -85,7 +30,14 @@ const DatabaseManager: React.FC = () => {
   // State
   const [activeTab, setActiveTab] = useState<TabOption>(TabOption.SQL);
   const [tables, setTables] = useState<DatabaseTable[]>(MOCK_TABLES);
-  const [folders, setFolders] = useState<Folder[]>(MOCK_FOLDERS);
+  const [folders, setFolders] = useState<Folder[]>(MOCK_DB_FOLDERS);
+  const [modules, setModules] = useState<DatabaseModule[]>(MOCK_MODULES);
+  
+  // Module State
+  const [activeModuleId, setActiveModuleId] = useState<string | null>(null);
+  const [isModuleModalOpen, setIsModuleModalOpen] = useState(false);
+  const [editingModule, setEditingModule] = useState<DatabaseModule | undefined>(undefined);
+
   const [selectedTableId, setSelectedTableId] = useState<string | undefined>();
   const [sqlCode, setSqlCode] = useState<string>('SELECT * FROM users LIMIT 10;');
   const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
@@ -164,6 +116,22 @@ const DatabaseManager: React.FC = () => {
       window.removeEventListener("mouseup", stopResizing);
     };
   }, [resize, stopResizing]);
+
+  // Derived State: Filtered tables based on active module
+  const filteredTables = activeModuleId 
+    ? tables.filter(t => modules.find(m => m.id === activeModuleId)?.tableIds.includes(t.id))
+    : tables;
+
+  // Effect: When active module changes, update ER Diagram
+  useEffect(() => {
+      if (activeModuleId) {
+          const module = modules.find(m => m.id === activeModuleId);
+          if (module) {
+              handleGenerateERD(module.tableIds);
+              setActiveTab(TabOption.ER_DIAGRAM);
+          }
+      }
+  }, [activeModuleId]);
 
   // Handlers
   const handleToggleFolder = (id: string) => {
@@ -307,6 +275,28 @@ const DatabaseManager: React.FC = () => {
       setTables(prev => prev.map(t => t.id === tableId ? updatedTable : t));
   };
 
+  // Module Handlers
+  const handleSaveModule = (data: Omit<DatabaseModule, 'id'>) => {
+      if (editingModule) {
+          setModules(prev => prev.map(m => m.id === editingModule.id ? { ...m, ...data } : m));
+          setEditingModule(undefined);
+      } else {
+          const newModule: DatabaseModule = {
+              id: `mod-${Date.now()}`,
+              ...data
+          };
+          setModules(prev => [...prev, newModule]);
+          setActiveModuleId(newModule.id);
+      }
+  };
+
+  const handleDeleteModule = (id: string) => {
+      if (confirm('确定要删除这个模块吗？')) {
+          setModules(prev => prev.filter(m => m.id !== id));
+          if (activeModuleId === id) setActiveModuleId(null);
+      }
+  };
+
   // AI Feature Handlers
   const handleUpdateSchemaMetadata = (metadata: any) => {
      if (metadata && metadata.tables) {
@@ -421,12 +411,18 @@ const DatabaseManager: React.FC = () => {
   }, [setNodes, setEdges]);
 
   return (
-    <div className="flex h-screen w-full bg-slate-100 overflow-hidden font-sans text-slate-800" ref={containerRef}>
+    <div className="flex h-full w-full bg-slate-100 overflow-hidden font-sans text-slate-800 border-t border-slate-200" ref={containerRef}>
       
       {/* Left Sidebar (Resizable) */}
       <Sidebar 
-        tables={tables}
+        tables={filteredTables}
         folders={folders}
+        modules={modules}
+        activeModuleId={activeModuleId}
+        onSelectModule={setActiveModuleId}
+        onCreateModule={() => { setEditingModule(undefined); setIsModuleModalOpen(true); }}
+        onEditModule={(mod) => { setEditingModule(mod); setIsModuleModalOpen(true); }}
+        onDeleteModule={handleDeleteModule}
         onToggleFolder={handleToggleFolder}
         onSelectTable={handleSelectTable}
         selectedTableId={selectedTableId}
@@ -524,15 +520,23 @@ const DatabaseManager: React.FC = () => {
             )}
 
             {activeTab === TabOption.ER_DIAGRAM && (
-                <ERDiagram 
-                    nodes={nodes}
-                    edges={edges}
-                    onNodesChange={onNodesChange}
-                    onEdgesChange={onEdgesChange}
-                    onConnect={onConnect}
-                    onDrop={onDropTableToERD}
-                    onDeleteNode={onDeleteNode}
-                />
+                <div className="h-full relative">
+                    {activeModuleId && (
+                         <div className="absolute top-4 left-4 z-10 bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-md shadow-sm flex items-center gap-2 text-xs font-medium text-indigo-700">
+                             <Layers className="w-3.5 h-3.5" />
+                             当前模块: {modules.find(m => m.id === activeModuleId)?.name}
+                         </div>
+                    )}
+                    <ERDiagram 
+                        nodes={nodes}
+                        edges={edges}
+                        onNodesChange={onNodesChange}
+                        onEdgesChange={onEdgesChange}
+                        onConnect={onConnect}
+                        onDrop={onDropTableToERD}
+                        onDeleteNode={onDeleteNode}
+                    />
+                </div>
             )}
 
             {activeTab === TabOption.FIELDS && (
@@ -588,7 +592,7 @@ const DatabaseManager: React.FC = () => {
               <AIChat 
                 messages={aiMessages}
                 setMessages={setAiMessages}
-                schema={tables}
+                schema={filteredTables}
                 onApplyCode={handleApplyAiCode}
                 onUpdateSchemaMetadata={handleUpdateSchemaMetadata}
                 onGenerateERD={handleGenerateERD}
@@ -599,6 +603,15 @@ const DatabaseManager: React.FC = () => {
               />
           </div>
       )}
+
+      {/* Module Modal */}
+      <ModuleModal 
+          isOpen={isModuleModalOpen}
+          onClose={() => setIsModuleModalOpen(false)}
+          onSubmit={handleSaveModule}
+          initialData={editingModule}
+          allTables={tables}
+      />
 
     </div>
   );

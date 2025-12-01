@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import { DatabaseTable, Folder } from '../../types';
+import { DatabaseTable, Folder, DatabaseModule } from '../../types';
 import { 
   ChevronRight, 
   ChevronDown, 
@@ -13,12 +14,21 @@ import {
   Move,
   FolderPlus,
   Trash2,
-  X
+  X,
+  Layers,
+  Settings,
+  Check
 } from 'lucide-react';
 
 interface SidebarProps {
   tables: DatabaseTable[];
   folders: Folder[];
+  modules: DatabaseModule[];
+  activeModuleId: string | null;
+  onSelectModule: (id: string | null) => void;
+  onCreateModule: () => void;
+  onEditModule: (module: DatabaseModule) => void;
+  onDeleteModule: (id: string) => void;
   onToggleFolder: (id: string) => void;
   onSelectTable: (table: DatabaseTable) => void;
   selectedTableId?: string;
@@ -45,6 +55,12 @@ interface ModalState {
 const Sidebar: React.FC<SidebarProps> = ({ 
   tables, 
   folders, 
+  modules,
+  activeModuleId,
+  onSelectModule,
+  onCreateModule,
+  onEditModule,
+  onDeleteModule,
   onToggleFolder, 
   onSelectTable,
   selectedTableId,
@@ -60,15 +76,20 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [modal, setModal] = useState<ModalState>({ type: null });
   const [inputValue, setInputValue] = useState('');
   const [cnInputValue, setCnInputValue] = useState('');
+  const [isModuleDropdownOpen, setIsModuleDropdownOpen] = useState(false);
   
   // Refs for click outside
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  const moduleDropdownRef = useRef<HTMLDivElement>(null);
 
   // Close context menu on global click
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
         setContextMenu(null);
+      }
+      if (moduleDropdownRef.current && !moduleDropdownRef.current.contains(e.target as Node)) {
+        setIsModuleDropdownOpen(false);
       }
     };
     document.addEventListener('click', handleClick);
@@ -117,19 +138,34 @@ const Sidebar: React.FC<SidebarProps> = ({
       }
   };
 
+  const activeModule = modules.find(m => m.id === activeModuleId);
+
   // --- Recursive Render Helpers for Main Sidebar ---
 
   const renderTree = (parentId?: string, depth = 0) => {
     const currentFolders = folders.filter(f => f.parentId === parentId);
     const currentTables = tables.filter(t => t.parentId === parentId);
 
-    if (currentFolders.length === 0 && currentTables.length === 0 && depth > 0) {
+    // Filter empty folders in Module View to avoid clutter
+    const visibleFolders = activeModuleId 
+        ? currentFolders.filter(f => {
+            // Check if folder has any tables or sub-folders with tables (simplified check)
+            // A robust check would require full tree traversal, for now we just show if direct children exist
+            const hasTables = tables.some(t => t.parentId === f.id);
+            const hasSubFolders = folders.some(sub => sub.parentId === f.id); 
+            // This is a shallow check, activeModuleId filtering happens in parent index.tsx, 
+            // so `tables` prop here only contains filtered tables.
+            return hasTables || hasSubFolders; 
+        })
+        : currentFolders;
+
+    if (visibleFolders.length === 0 && currentTables.length === 0 && depth > 0) {
         return <div className="pl-6 py-1 text-xs text-slate-400 italic">空</div>;
     }
 
     return (
       <div className={`${depth > 0 ? 'ml-4 border-l border-slate-200 pl-2' : ''}`}>
-        {currentFolders.map(folder => (
+        {visibleFolders.map(folder => (
           <div key={folder.id}>
             <div 
               className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-200 cursor-pointer text-slate-700 group relative"
@@ -184,7 +220,6 @@ const Sidebar: React.FC<SidebarProps> = ({
     return (
         <>
             {currentFolders.map(folder => {
-                // If we are moving a folder, do not show itself or its children as valid targets
                 if (modal.type === 'move' && modal.itemType === 'folder' && modal.targetId === folder.id) {
                     return null;
                 }
@@ -215,16 +250,92 @@ const Sidebar: React.FC<SidebarProps> = ({
         style={{ width }}
         onContextMenu={(e) => handleContextMenu(e, 'root')}
     >
-      {/* Header */}
-      <div className="p-4 border-b border-slate-200 bg-white">
-        <h2 className="font-bold text-slate-700 flex items-center gap-2">
-          <Database className="w-4 h-4 text-blue-600" />
-          生产数据库
-        </h2>
-        <p className="text-xs text-slate-400 mt-1">postgres @ localhost:5432</p>
+      {/* Module Switcher Header */}
+      <div className="p-3 border-b border-slate-200 bg-white relative z-20">
+        <div 
+            ref={moduleDropdownRef}
+            className="relative"
+        >
+            <button 
+                onClick={() => setIsModuleDropdownOpen(!isModuleDropdownOpen)}
+                className="w-full flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all text-left"
+            >
+                <div className="flex items-center gap-2 overflow-hidden">
+                    {activeModule ? (
+                        <Layers className="w-4 h-4 text-indigo-600" />
+                    ) : (
+                        <Database className="w-4 h-4 text-blue-600" />
+                    )}
+                    <div className="flex flex-col overflow-hidden">
+                        <span className="text-sm font-bold text-slate-700 truncate">
+                            {activeModule ? activeModule.name : '生产数据库 (全部)'}
+                        </span>
+                        {activeModule && (
+                             <span className="text-[10px] text-slate-400 truncate">模块模式</span>
+                        )}
+                    </div>
+                </div>
+                <ChevronDown className="w-4 h-4 text-slate-400" />
+            </button>
+
+            {isModuleDropdownOpen && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-50 animate-in fade-in zoom-in-95 duration-100 overflow-hidden">
+                    <div className="p-2 border-b border-slate-100 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        切换视图
+                    </div>
+                    
+                    <button 
+                        onClick={() => { onSelectModule(null); setIsModuleDropdownOpen(false); }}
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-100 text-left ${activeModuleId === null ? 'bg-blue-50 text-blue-700 font-medium' : 'text-slate-600'}`}
+                    >
+                        <Database className="w-4 h-4" />
+                        <span>所有数据表</span>
+                        {activeModuleId === null && <Check className="w-3.5 h-3.5 ml-auto" />}
+                    </button>
+                    
+                    <div className="h-px bg-slate-100 my-1"></div>
+                    
+                    {modules.map(mod => (
+                        <div key={mod.id} className="group relative flex items-center">
+                            <button 
+                                onClick={() => { onSelectModule(mod.id); setIsModuleDropdownOpen(false); }}
+                                className={`flex-1 flex items-center gap-2 px-3 py-2 text-sm hover:bg-slate-100 text-left ${activeModuleId === mod.id ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-slate-600'}`}
+                            >
+                                <Layers className="w-4 h-4" />
+                                <span className="truncate">{mod.name}</span>
+                                {activeModuleId === mod.id && <Check className="w-3.5 h-3.5 ml-auto" />}
+                            </button>
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); onEditModule(mod); setIsModuleDropdownOpen(false); }}
+                                className="absolute right-8 p-1 text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="编辑模块"
+                            >
+                                <Settings className="w-3.5 h-3.5" />
+                            </button>
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); onDeleteModule(mod.id); }}
+                                className="absolute right-1 p-1 text-slate-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="删除模块"
+                            >
+                                <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
+                    ))}
+                    
+                    <div className="p-2 border-t border-slate-100 bg-slate-50">
+                        <button 
+                            onClick={() => { onCreateModule(); setIsModuleDropdownOpen(false); }}
+                            className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:border-blue-400 hover:text-blue-600 text-slate-600 rounded text-xs font-medium transition-colors"
+                        >
+                            <Plus className="w-3.5 h-3.5" /> 新建业务模块
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
       </div>
 
-      {/* Actions */}
+      {/* Actions (Only show in All Tables mode or specific context) */}
       <div className="p-2 grid grid-cols-2 gap-2 border-b border-slate-200 bg-slate-50">
         <button 
             onClick={() => openModal('createTable')}
@@ -247,7 +358,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       
       {/* Footer / Drag Hint */}
       <div className="p-3 bg-slate-50 border-t border-slate-200 text-[10px] text-slate-400 text-center">
-        将表拖到 ER 图中或右键管理
+        {activeModuleId ? '当前为模块视图，仅显示相关表' : '将表拖到 ER 图中或右键管理'}
       </div>
 
       {/* --- Context Menu --- */}
@@ -271,7 +382,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                </button>
             </>
           )}
-
+          {/* ... existing context menus for folder and root ... */}
           {contextMenu.type === 'folder' && (
              <>
                <button 
@@ -318,12 +429,11 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
       )}
 
-      {/* --- Modals --- */}
+      {/* --- Modals (Existing) --- */}
       {modal.type && (
           <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-[1px] z-50 flex items-center justify-center">
             <div className="bg-white rounded-lg shadow-2xl border border-slate-200 w-80 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                
-                {/* Modal Header */}
+                {/* ... existing modal content ... */}
                 <div className="px-4 py-3 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                     <h3 className="font-bold text-slate-700 text-sm">
                         {modal.type === 'createTable' && '新建数据表'}
@@ -335,7 +445,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                     </button>
                 </div>
 
-                {/* Create Form */}
                 {(modal.type === 'createTable' || modal.type === 'createFolder') && (
                     <div className="p-4 space-y-4">
                         <div>
@@ -353,7 +462,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                             />
                         </div>
                         
-                        {/* Chinese Name Input for Tables */}
                         {modal.type === 'createTable' && (
                           <div>
                               <label className="block text-xs font-medium text-slate-500 mb-1.5">中文名称 (选填)</label>
@@ -386,7 +494,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                 )}
 
-                {/* Move Item Selector (Tree Structure) */}
                 {modal.type === 'move' && (
                     <div className="flex flex-col max-h-96">
                         <div className="overflow-y-auto p-2 space-y-1">
@@ -397,8 +504,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                                 <Database className="w-4 h-4 text-slate-400" />
                                 <span className="italic text-slate-500">根目录</span>
                             </button>
-                            
-                            {/* Recursive Tree Render */}
                             {renderMoveDestinations(undefined, 0)}
                         </div>
                         <div className="p-2 border-t border-slate-100 bg-slate-50 text-[10px] text-slate-400 text-center">

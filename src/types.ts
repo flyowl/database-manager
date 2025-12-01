@@ -25,6 +25,13 @@ export interface Folder {
   parentId?: string;
 }
 
+export interface DatabaseModule {
+  id: string;
+  name: string;
+  description?: string;
+  tableIds: string[];
+}
+
 export enum TabOption {
   SQL = 'SQL',
   FIELDS = 'FIELDS',
@@ -51,4 +58,35 @@ export interface SavedQuery {
   name: string;
   sql: string;
   createdAt: Date;
+}
+
+// Navigation Types
+export enum AppPage {
+  SMART_QUERY = 'SMART_QUERY',
+  DATASOURCE = 'DATASOURCE',
+  DATABASE_MANAGER = 'DATABASE_MANAGER',
+  API_MANAGER = 'API_MANAGER',
+  FUNCTION_MANAGER = 'FUNCTION_MANAGER',
+  LOGS = 'LOGS',
+  SETTINGS = 'SETTINGS'
+}
+
+export interface DataSource {
+  id: string;
+  name: string;
+  type: 'PostgreSQL' | 'MySQL' | 'SQL Server';
+  host: string;
+  status: 'online' | 'offline';
+  apiCount: number;
+  isDefault?: boolean;
+}
+
+export interface GlobalFunction {
+  id: string;
+  name: string;
+  description?: string;
+  code: string;
+  tags?: string[];
+  createdAt: Date;
+  updatedAt: Date;
 }

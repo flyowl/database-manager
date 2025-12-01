@@ -107,7 +107,7 @@ const DataGrid: React.FC<DataGridProps> = ({ result, isLoading }) => {
       {/* Pagination Footer */}
       <div className="p-2 border-t border-slate-200 bg-white flex items-center justify-end gap-3">
         <div className="relative">
-          <select className="appearance-none text-xs border border-slate-200 rounded px-3 py-1.5 bg-white text-slate-600 focus:outline-none focus:border-blue-500 pr-8 hover:bg-slate-50 transition-colors cursor-pointer">
+          <select className="appearance-none text-xs border border-slate-200 rounded px-3 py-1.5 bg-white text-slate-600 focus:outline-none focus:border-blue-500 pr-8 hover:bg-slate-50 transition-colors cursor-pointer focus:ring-2 focus:ring-blue-100">
               <option>20 条/页</option>
               <option>50 条/页</option>
               <option>100 条/页</option>

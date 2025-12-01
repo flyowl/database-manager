@@ -1,9 +1,10 @@
 
+
 import { GoogleGenAI } from "@google/genai";
 import { ChatMessage, DatabaseTable } from '../types';
 
-// Ensure we have a key (in a real app, handle missing key gracefully in UI)
-const API_KEY = process.env.API_KEY || '';
+// Ensure we have a key (handle missing process gracefully)
+const API_KEY = (typeof process !== 'undefined' && process.env && process.env.API_KEY) ? process.env.API_KEY : '';
 
 const ai = new GoogleGenAI({ apiKey: API_KEY });
 
@@ -39,7 +40,28 @@ const SYSTEM_INSTRUCTION = `
      \`\`\`
      注意：只返回表的 ID 列表，前端会自动处理连线。如果是新设计的表，你需要先提供 CREATE TABLE SQL。
 
-5. 性能分析：
+5. 图表生成 (Smart Chart):
+   - 当用户要求"可视化"、"画图"、"分析趋势"时，请除了文字分析外，生成一个用于渲染图表的 JSON 代码块。
+   - 格式必须为 \`\`\`json:chart ... \`\`\`
+   - 结构如下：
+     \`\`\`json:chart
+     {
+       "type": "bar" | "line" | "pie" | "area",
+       "title": "图表标题",
+       "sql": "SELECT ...", 
+       "data": [
+         { "name": "类别A", "value": 100, "uv": 200 },
+         { "name": "类别B", "value": 150, "uv": 180 }
+       ],
+       "xAxisKey": "name",
+       "series": [
+         { "dataKey": "value", "name": "销售额", "color": "#8884d8" },
+         { "dataKey": "uv", "name": "访问量", "color": "#82ca9d" }
+       ]
+     }
+     \`\`\`
+
+6. 性能分析：
    - 如果用户询问性能，提供 EXPLAIN ANALYZE 的思路或具体的索引建议。
 
 注意：用户不能在没有明确确认的情况下运行破坏性命令（DROP/DELETE）。

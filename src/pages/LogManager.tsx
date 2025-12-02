@@ -7,10 +7,10 @@ const LogManager: React.FC = () => {
     id: `log-${i}`,
     timestamp: new Date(Date.now() - i * 60000).toLocaleString(),
     method: i % 4 === 0 ? 'POST' : 'GET',
-    path: i % 4 === 0 ? '/api/v1/orders' : `/api/v1/users/${i+100}`,
+    path: i % 4 === 0 ? '/api/v1/monitor/alerts' : `/api/v1/cmdb/server/${100+i}`,
     status: i % 7 === 0 ? 500 : (i % 5 === 0 ? 400 : 200),
     latency: Math.floor(Math.random() * 200) + 20,
-    ip: `192.168.1.${10 + i}`
+    ip: `10.0.1.${10 + i}`
   }));
 
   return (

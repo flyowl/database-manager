@@ -18,15 +18,15 @@ enum SettingsTab {
 // --- Mock Data ---
 
 const MOCK_USERS = [
-    { id: '1', name: 'Admin User', email: 'admin@example.com', role: 'Super Admin', status: 'Active', lastLogin: '2023-10-24 10:30' },
-    { id: '2', name: 'John Doe', email: 'john@example.com', role: 'Developer', status: 'Active', lastLogin: '2023-10-23 15:45' },
-    { id: '3', name: 'Jane Smith', email: 'jane@example.com', role: 'Viewer', status: 'Inactive', lastLogin: '2023-10-20 09:12' },
+    { id: '1', name: 'SRE Admin', email: 'admin@ops.com', role: 'Ops Manager', status: 'Active', lastLogin: '2023-11-24 10:30' },
+    { id: '2', name: 'DevOps Engineer', email: 'devops@ops.com', role: 'SRE', status: 'Active', lastLogin: '2023-11-23 15:45' },
+    { id: '3', name: 'Backend Lead', email: 'lead@tech.com', role: 'Developer', status: 'Active', lastLogin: '2023-11-20 09:12' },
 ];
 
 const MOCK_ROLES = [
-    { id: '1', name: 'Super Admin', description: '拥有系统所有资源的完全访问权限', usersCount: 1, permissions: ['*'] },
-    { id: '2', name: 'Developer', description: '可以创建和编辑 API，管理数据库连接', usersCount: 5, permissions: ['api:read', 'api:write', 'db:read', 'db:write'] },
-    { id: '3', name: 'Viewer', description: '仅拥有 API 和日志的只读访问权限', usersCount: 12, permissions: ['api:read', 'logs:read'] },
+    { id: '1', name: 'Ops Manager', description: '拥有CMDB、监控、发布系统的最高权限', usersCount: 1, permissions: ['*'] },
+    { id: '2', name: 'SRE', description: '负责日常监控运维、故障处理及发布管理', usersCount: 3, permissions: ['cmdb:write', 'monitor:read', 'deploy:write'] },
+    { id: '3', name: 'Developer', description: '仅拥有应用日志查询和只读权限', usersCount: 12, permissions: ['monitor:read', 'logs:read'] },
 ];
 
 const PERMISSION_TREE = [
@@ -34,21 +34,26 @@ const PERMISSION_TREE = [
         id: 'sys', label: '系统管理', children: [
             { id: 'sys:user', label: '用户管理' },
             { id: 'sys:role', label: '角色管理' },
-            { id: 'sys:log', label: '日志查看' }
+            { id: 'sys:audit', label: '审计日志' }
         ]
     },
     {
-        id: 'db', label: '数据库管理', children: [
-            { id: 'db:read', label: '读取表结构' },
-            { id: 'db:write', label: '修改表结构' },
-            { id: 'db:data', label: '数据查询' }
+        id: 'cmdb', label: '资产管理', children: [
+            { id: 'cmdb:read', label: '查看资产' },
+            { id: 'cmdb:write', label: '编辑资产' },
+            { id: 'cmdb:delete', label: '删除资产' }
         ]
     },
     {
-        id: 'api', label: '接口管理', children: [
-            { id: 'api:read', label: '查看接口' },
-            { id: 'api:write', label: '编辑接口' },
-            { id: 'api:publish', label: '发布接口' }
+        id: 'monitor', label: '监控告警', children: [
+            { id: 'monitor:read', label: '查看监控' },
+            { id: 'monitor:alert', label: '处理告警' }
+        ]
+    },
+    {
+        id: 'deploy', label: '自动化部署', children: [
+            { id: 'deploy:read', label: '查看部署记录' },
+            { id: 'deploy:write', label: '执行部署' }
         ]
     }
 ];

@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import TopNav from './src/components/layout/TopNav';
 import ApiBuilder from './src/modules/api-builder';
@@ -8,10 +9,11 @@ import LogManager from './src/pages/LogManager';
 import Settings from './src/pages/Settings';
 import SmartQuery from './src/pages/SmartQuery';
 import FunctionManager from './src/pages/FunctionManager';
+import OpsManager from './src/pages/OpsManager';
 import { AppPage } from './src/types';
 
 function App() {
-  const [activePage, setActivePage] = useState<AppPage>(AppPage.SMART_QUERY);
+  const [activePage, setActivePage] = useState<AppPage>(AppPage.OPS_MANAGER);
 
   const renderContent = () => {
     switch (activePage) {
@@ -25,12 +27,14 @@ function App() {
         return <ApiBuilder />;
       case AppPage.FUNCTION_MANAGER:
         return <FunctionManager />;
+      case AppPage.OPS_MANAGER:
+        return <OpsManager />;
       case AppPage.LOGS:
         return <LogManager />;
       case AppPage.SETTINGS:
         return <Settings />;
       default:
-        return <SmartQuery />;
+        return <OpsManager />;
     }
   };
 

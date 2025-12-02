@@ -1,5 +1,4 @@
 
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Plus, MessageSquare, Trash2, Bot, User, Sparkles, Search, MoreHorizontal, Edit2, Copy } from 'lucide-react';
 import { ChatMessage } from '../types';
@@ -19,11 +18,11 @@ interface Session {
 const MOCK_SESSIONS: Session[] = [
     {
         id: '1',
-        title: '用户增长分析',
+        title: '服务器资源分析',
         date: new Date(),
         messages: [
-            { id: '1', role: 'user', content: '分析一下上个月的用户增长情况', timestamp: new Date() },
-            { id: '2', role: 'model', content: '好的，根据数据分析，上个月新增用户 1205 人，环比增长 15%。\n\n```json:chart\n{\n  "type": "bar",\n  "title": "近半年用户增长趋势",\n  "data": [\n    { "month": "Jan", "users": 850 },\n    { "month": "Feb", "users": 940 },\n    { "month": "Mar", "users": 1100 },\n    { "month": "Apr", "users": 1050 },\n    { "month": "May", "users": 1205 },\n    { "month": "Jun", "users": 1350 }\n  ],\n  "xAxisKey": "month",\n  "sql": "SELECT month, count(*) as users FROM users GROUP BY month ORDER BY month",\n  "series": [\n    { "dataKey": "users", "name": "新增用户", "color": "#6366f1" }\n  ]\n}\n```', timestamp: new Date() }
+            { id: '1', role: 'user', content: '分析一下过去 24 小时的服务器 CPU 负载趋势', timestamp: new Date() },
+            { id: '2', role: 'model', content: '好的，根据监控数据，web-prod 服务器组在下午 14:00-16:00 出现负载高峰。\n\n```json:chart\n{\n  "type": "line",\n  "title": "CPU 负载趋势 (Web Cluster)",\n  "data": [\n    { "time": "08:00", "web-01": 25, "web-02": 22 },\n    { "time": "10:00", "web-01": 45, "web-02": 40 },\n    { "time": "12:00", "web-01": 55, "web-02": 52 },\n    { "time": "14:00", "web-01": 85, "web-02": 80 },\n    { "time": "16:00", "web-01": 70, "web-02": 68 },\n    { "time": "18:00", "web-01": 40, "web-02": 38 }\n  ],\n  "xAxisKey": "time",\n  "sql": "SELECT time_bucket(\'2 hours\', time) as time, avg(cpu) FROM metrics WHERE host LIKE \'web%\' GROUP BY 1",\n  "series": [\n    { "dataKey": "web-01", "name": "web-01 CPU%", "color": "#6366f1" },\n    { "dataKey": "web-02", "name": "web-02 CPU%", "color": "#10b981" }\n  ]\n}\n```', timestamp: new Date() }
         ]
     }
 ];
@@ -307,12 +306,12 @@ const SmartQuery: React.FC = () => {
                         <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mb-6">
                             <Sparkles className="w-10 h-10 text-indigo-500" />
                         </div>
-                        <h3 className="text-xl font-bold text-slate-800 mb-2">我是您的智能数据助手</h3>
+                        <h3 className="text-xl font-bold text-slate-800 mb-2">我是您的智能运维助手</h3>
                         <p className="text-slate-500 max-w-md text-center">
-                            您可以询问任何关于数据库结构、生成 SQL 查询或数据分析的问题。
+                            您可以询问关于服务器资产、监控告警、部署记录的问题。
                         </p>
                         <div className="grid grid-cols-2 gap-3 mt-8 max-w-2xl w-full">
-                            {['查询本月销售额 TOP 10', '画出今年用户增长曲线图', '生成新表结构设计', '解释复杂 SQL 语句'].map((hint, i) => (
+                            {['查询 CPU 负载高的服务器', '统计本周的部署失败次数', '生成清理日志的脚本', '解释 K8s Pod 异常原因'].map((hint, i) => (
                                 <button 
                                   key={i}
                                   onClick={() => setInput(hint)}
@@ -335,7 +334,7 @@ const SmartQuery: React.FC = () => {
                             
                             <div className={`max-w-[85%] space-y-1`}>
                                 <div className={`flex items-center gap-2 text-xs text-slate-400 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                                    <span className="font-bold">{msg.role === 'user' ? 'You' : 'DB Genie'}</span>
+                                    <span className="font-bold">{msg.role === 'user' ? 'You' : 'Ops Genie'}</span>
                                     <span>{msg.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                                 </div>
                                 <div className={`
@@ -383,7 +382,7 @@ const SmartQuery: React.FC = () => {
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder="输入您的问题 (例如: 画出今年用户增长趋势图)..."
+                        placeholder="输入您的问题 (例如: 统计本月告警数量)..."
                         className="w-full pl-5 pr-14 py-4 bg-transparent border-none focus:ring-0 text-slate-700 resize-none max-h-40 min-h-[60px]"
                         rows={1}
                       />

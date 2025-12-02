@@ -65,9 +65,9 @@ const PARAM_TYPES = [
 ];
 
 const INITIAL_MOCK_VERSIONS = [
-    { version: 'v1.0.2', desc: '优化查询性能，增加索引提示', time: '2023-11-15 14:30', operator: 'Admin' },
-    { version: 'v1.0.1', desc: '增加 create_time 过滤条件', time: '2023-11-14 09:20', operator: 'John Doe' },
-    { version: 'v1.0.0', desc: '初始发布', time: '2023-11-10 16:00', operator: 'Admin' },
+    { version: 'v1.0.2', desc: '优化查询性能，增加索引提示', time: '2023-11-15 14:30', operator: 'SRE Admin' },
+    { version: 'v1.0.1', desc: '增加 hostname 过滤条件', time: '2023-11-14 09:20', operator: 'DevOps Engineer' },
+    { version: 'v1.0.0', desc: '初始发布', time: '2023-11-10 16:00', operator: 'SRE Admin' },
 ];
 
 const WorkBench: React.FC<WorkBenchProps> = ({ api, onUpdateApi, onDeleteApi, dataSources, functions, onSelectionChange }) => {
@@ -252,10 +252,10 @@ const WorkBench: React.FC<WorkBenchProps> = ({ api, onUpdateApi, onDeleteApi, da
             message: "Success",
             executionTime: "45ms",
             data: [
-                { id: 1, category: "Electronics", sales: 125000 },
-                { id: 2, category: "Clothing", sales: 89000 },
-                { id: 3, category: "Home & Garden", sales: 54000 },
-                { id: 4, category: "Books", sales: 32000 }
+                { id: 1, hostname: "web-prod-01", cpu_usage: "45%", memory_usage: "60%" },
+                { id: 2, hostname: "db-prod-01", cpu_usage: "82%", memory_usage: "90%" },
+                { id: 3, hostname: "cache-prod-01", cpu_usage: "15%", memory_usage: "45%" },
+                { id: 4, hostname: "worker-prod-01", cpu_usage: "60%", memory_usage: "75%" }
             ]
         });
         setIsRunning(false);
@@ -275,7 +275,7 @@ const WorkBench: React.FC<WorkBenchProps> = ({ api, onUpdateApi, onDeleteApi, da
           version: `v1.0.${versions.length + 3}`, // Mock logic for version numbering
           desc: publishDesc || '常规更新',
           time: new Date().toLocaleString(),
-          operator: 'Admin'
+          operator: 'SRE Admin'
       };
 
       setVersions([newVersion, ...versions]);

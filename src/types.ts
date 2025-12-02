@@ -45,6 +45,7 @@ export interface ChatMessage {
   content: string;
   timestamp: Date;
   isThinking?: boolean;
+  image?: string; // Base64 data url for displaying image in chat
 }
 
 export interface QueryResult {
@@ -67,6 +68,7 @@ export enum AppPage {
   DATABASE_MANAGER = 'DATABASE_MANAGER',
   API_MANAGER = 'API_MANAGER',
   FUNCTION_MANAGER = 'FUNCTION_MANAGER',
+  OPS_MANAGER = 'OPS_MANAGER', // Added
   LOGS = 'LOGS',
   SETTINGS = 'SETTINGS'
 }

@@ -1,5 +1,4 @@
 
-
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { 
   DatabaseTable, 
@@ -22,8 +21,8 @@ import { Node, Edge, useNodesState, useEdgesState, addEdge, Connection } from 'r
 import { MOCK_TABLES, MOCK_DB_FOLDERS, MOCK_MODULES } from '../data/mockData';
 
 const MOCK_SAVED_QUERIES: SavedQuery[] = [
-    { id: '1', name: '查询活跃用户', sql: "SELECT * FROM users WHERE status = 'active';", createdAt: new Date() },
-    { id: '2', name: '统计每月销售额', sql: "SELECT date_trunc('month', created_at) as month, SUM(total_amount) FROM orders GROUP BY 1;", createdAt: new Date() }
+    { id: '1', name: '查询高负载服务器', sql: "SELECT * FROM servers WHERE status = 'running';", createdAt: new Date() },
+    { id: '2', name: '统计本月失败部署', sql: "SELECT app_id, count(*) FROM deployments WHERE status = 'failed' GROUP BY 1;", createdAt: new Date() }
 ];
 
 const DatabaseManager: React.FC = () => {
@@ -39,7 +38,7 @@ const DatabaseManager: React.FC = () => {
   const [editingModule, setEditingModule] = useState<DatabaseModule | undefined>(undefined);
 
   const [selectedTableId, setSelectedTableId] = useState<string | undefined>();
-  const [sqlCode, setSqlCode] = useState<string>('SELECT * FROM users LIMIT 10;');
+  const [sqlCode, setSqlCode] = useState<string>('SELECT * FROM servers LIMIT 20;');
   const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
   const [isQueryLoading, setIsQueryLoading] = useState(false);
   const [aiMessages, setAiMessages] = useState<ChatMessage[]>([]);
@@ -153,15 +152,33 @@ const DatabaseManager: React.FC = () => {
       let mockData: any[] = [];
       let columns: string[] = [];
 
-      if (tableName === 'users') {
-          columns = ['id', 'username', 'email', 'status'];
+      if (tableName === 'servers') {
+          columns = ['id', 'hostname', 'ip_address', 'os_version', 'status', 'region'];
           mockData = Array.from({length: 20}).map((_, i) => ({
-             id: i + 1, username: `user_${i+1}`, email: `user${i+1}@example.com`, status: i % 3 === 0 ? 'inactive' : 'active'
+             id: i + 1, 
+             hostname: `web-prod-${String(i+1).padStart(2, '0')}`, 
+             ip_address: `10.0.1.${10+i}`, 
+             os_version: 'Ubuntu 22.04',
+             status: i % 10 === 0 ? 'maintenance' : 'running',
+             region: 'cn-hangzhou'
           }));
-      } else if (tableName === 'orders') {
-          columns = ['id', 'user_id', 'total_amount', 'status'];
+      } else if (tableName === 'deployments') {
+          columns = ['id', 'app_id', 'version', 'status', 'created_at'];
           mockData = Array.from({length: 20}).map((_, i) => ({
-             id: 1000 + i, user_id: (i % 5) + 1, total_amount: (Math.random() * 100).toFixed(2), status: 'completed'
+             id: 1000 + i, 
+             app_id: (i % 5) + 1, 
+             version: `v1.2.${i}`, 
+             status: i % 7 === 0 ? 'failed' : 'success',
+             created_at: new Date(Date.now() - i * 3600000).toLocaleString()
+          }));
+      } else if (tableName === 'alert_logs') {
+          columns = ['id', 'server_id', 'level', 'message', 'created_at'];
+          mockData = Array.from({length: 20}).map((_, i) => ({
+             id: 5000 + i, 
+             server_id: (i % 10) + 1, 
+             level: i % 5 === 0 ? 'critical' : 'warning',
+             message: i % 5 === 0 ? 'CPU usage > 95%' : 'Disk usage > 80%',
+             created_at: new Date(Date.now() - i * 60000).toLocaleString()
           }));
       } else {
           columns = ['id', 'name', 'value', 'description'];
@@ -182,11 +199,11 @@ const DatabaseManager: React.FC = () => {
     // Simulate API call for custom SQL
     setTimeout(() => {
       setQueryResult({
-        columns: ['id', 'username', 'email', 'status'],
+        columns: ['id', 'hostname', 'cpu_usage', 'memory_usage'],
         data: [
-          { id: 1, username: 'john_doe', email: 'john@example.com', status: 'active' },
-          { id: 2, username: 'jane_smith', email: 'jane@example.com', status: 'inactive' },
-          { id: 3, username: 'bob_wilson', email: 'bob@tech.com', status: 'active' },
+          { id: 1, hostname: 'web-01', cpu_usage: '45%', memory_usage: '60%' },
+          { id: 2, hostname: 'db-01', cpu_usage: '80%', memory_usage: '85%' },
+          { id: 3, hostname: 'cache-01', cpu_usage: '15%', memory_usage: '40%' },
         ],
         executionTime: 45
       });

@@ -1,6 +1,7 @@
 
+
 import React, { useState, useRef, useEffect } from 'react';
-import { Database, Code2, Activity, Settings, Zap, User, Sparkles, Variable, LogOut, UserCog } from 'lucide-react';
+import { Database, Code2, Activity, Settings, Zap, User, Sparkles, Variable, LogOut, UserCog, MonitorPlay } from 'lucide-react';
 import { AppPage } from '../../types';
 import UserProfileModal from '../profile/UserProfileModal';
 
@@ -15,6 +16,7 @@ const TopNav: React.FC<TopNavProps> = ({ activePage, onNavigate }) => {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const navItems = [
+    { id: AppPage.OPS_MANAGER, label: '运维管理', icon: MonitorPlay },
     { id: AppPage.SMART_QUERY, label: '智能问数', icon: Sparkles },
     { id: AppPage.DATASOURCE, label: '数据源管理', icon: Database },
     { id: AppPage.API_MANAGER, label: '在线接口管理', icon: Code2 },
@@ -44,13 +46,13 @@ const TopNav: React.FC<TopNavProps> = ({ activePage, onNavigate }) => {
     <div className="h-14 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 flex-shrink-0 text-white shadow-md z-50 relative">
       <div className="flex items-center gap-8">
         {/* Logo */}
-        <div className="flex items-center gap-2 cursor-pointer" onClick={() => onNavigate(AppPage.SMART_QUERY)}>
+        <div className="flex items-center gap-2 cursor-pointer" onClick={() => onNavigate(AppPage.OPS_MANAGER)}>
           <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20">
             <Zap className="w-5 h-5 text-white fill-current" />
           </div>
           <div>
             <h1 className="text-lg font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
-              APISQL
+              智能运维
             </h1>
           </div>
         </div>

@@ -1,45 +1,45 @@
 
-
 import { ApiFolder, ApiItem } from './types';
 
 export const MOCK_FOLDERS: ApiFolder[] = [
-  { id: 'sys', name: '系统接口', isOpen: true, type: 'system' },
-  { id: 'biz', name: '业务接口', isOpen: true, type: 'business' },
-  { id: 'custom', name: '自定义接口', isOpen: false, type: 'custom' },
+  { id: 'cmdb', name: 'CMDB 资产接口', isOpen: true, type: 'system' },
+  { id: 'monitor', name: '监控告警接口', isOpen: true, type: 'business' },
+  { id: 'deploy', name: '自动化发布', isOpen: false, type: 'custom' },
 ];
 
 export const MOCK_APIS: ApiItem[] = [
   {
     id: 'api-1',
-    name: '用户信息接口',
-    path: '/api/v1/user/info',
+    name: '查询服务器列表',
+    path: '/api/v1/cmdb/servers',
     method: 'GET',
-    folderId: 'sys',
+    folderId: 'cmdb',
     status: 'published',
-    sql: 'SELECT id, username, email, role, created_at FROM users WHERE id = #{user_id}',
+    sql: 'SELECT id, hostname, ip_address, status, region FROM servers WHERE status = #{status} AND region = #{region}',
     params: [
-      { name: 'user_id', type: 'Integer', required: true, defaultValue: '', sampleValue: '1001', description: '用户ID' }
+      { name: 'status', type: 'String', required: false, defaultValue: 'running', sampleValue: 'running', description: '运行状态' },
+      { name: 'region', type: 'String', required: false, defaultValue: 'cn-hangzhou', sampleValue: 'cn-hangzhou', description: '所属区域' }
     ],
     config: {
-      enablePagination: false,
+      enablePagination: true,
       pageSize: 20,
-      enableSorting: false
+      enableSorting: true
     },
     preHooks: [],
     postHooks: []
   },
   {
     id: 'api-2',
-    name: '权限管理接口',
-    path: '/api/v1/user/permissions',
+    name: '获取高危告警',
+    path: '/api/v1/monitor/alerts/critical',
     method: 'GET',
-    folderId: 'sys',
+    folderId: 'monitor',
     status: 'published',
-    sql: 'SELECT p.code, p.name FROM permissions p JOIN user_roles ur ON p.role_id = ur.role_id WHERE ur.user_id = #{user_id}',
+    sql: 'SELECT * FROM alert_logs WHERE level = \'critical\' AND is_resolved = false ORDER BY created_at DESC',
     params: [],
     config: {
-      enablePagination: false,
-      pageSize: 20,
+      enablePagination: true,
+      pageSize: 50,
       enableSorting: false
     },
     preHooks: [],
@@ -47,27 +47,27 @@ export const MOCK_APIS: ApiItem[] = [
   },
   {
     id: 'api-3',
-    name: '产品类别销售分析',
-    path: '/api/v1/sales/category-analysis',
+    name: '部署历史统计',
+    path: '/api/v1/deploy/stats',
     method: 'POST',
-    folderId: 'biz',
+    folderId: 'deploy',
     status: 'draft',
     sql: `SELECT 
-  p.category_name,
-  COUNT(o.id) as order_count,
-  SUM(o.total_amount) as total_sales
-FROM orders o
-JOIN products p ON o.product_id = p.id
-WHERE o.created_at BETWEEN #{start_date} AND #{end_date}
-GROUP BY p.category_name
-ORDER BY total_sales DESC`,
+  a.name as app_name,
+  COUNT(d.id) as deploy_count,
+  SUM(CASE WHEN d.status = 'failed' THEN 1 ELSE 0 END) as fail_count,
+  AVG(d.duration_seconds) as avg_duration
+FROM deployments d
+JOIN applications a ON d.app_id = a.id
+WHERE d.created_at >= #{start_time}
+GROUP BY a.name
+ORDER BY fail_count DESC`,
     params: [
-      { name: 'start_date', type: 'Date', required: true, defaultValue: '', sampleValue: '2023-01-01', description: '开始日期' },
-      { name: 'end_date', type: 'Date', required: true, defaultValue: '', sampleValue: '2023-12-31', description: '结束日期' }
+      { name: 'start_time', type: 'Date', required: true, defaultValue: '', sampleValue: '2023-11-01', description: '统计开始时间' }
     ],
     config: {
-      enablePagination: true,
-      pageSize: 50,
+      enablePagination: false,
+      pageSize: 100,
       enableSorting: true
     },
     preHooks: [],
@@ -75,17 +75,20 @@ ORDER BY total_sales DESC`,
   },
   {
     id: 'api-4',
-    name: '库存查询接口',
-    path: '/api/v1/inventory/check',
-    method: 'GET',
-    folderId: 'biz',
+    name: '更新服务器状态',
+    path: '/api/v1/cmdb/server/status',
+    method: 'PUT',
+    folderId: 'cmdb',
     status: 'published',
-    sql: 'SELECT * FROM inventory WHERE quantity < #{min_threshold}',
-    params: [],
+    sql: 'UPDATE servers SET status = #{status} WHERE hostname = #{hostname}',
+    params: [
+        { name: 'hostname', type: 'String', required: true, defaultValue: '', sampleValue: 'web-prod-01', description: '主机名' },
+        { name: 'status', type: 'String', required: true, defaultValue: '', sampleValue: 'maintenance', description: '新状态' }
+    ],
     config: {
-      enablePagination: true,
-      pageSize: 10,
-      enableSorting: true
+      enablePagination: false,
+      pageSize: 1,
+      enableSorting: false
     },
     preHooks: [],
     postHooks: []

@@ -123,6 +123,52 @@ const ApiBuilder: React.FC = () => {
       }
   };
 
+  const handleAiBatchCreate = (data: { folders: any[], apis: any[] }) => {
+      const newFolders = [...folders];
+      const newApis = [...apis];
+      const folderMap = new Map<string, string>(); // Name -> ID mapping
+
+      // 1. Process Folders
+      data.folders?.forEach(f => {
+          // Check if folder exists by name
+          const existing = newFolders.find(ef => ef.name === f.name);
+          if (existing) {
+              folderMap.set(f.name, existing.id);
+          } else {
+              const newId = `folder-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+              newFolders.push({
+                  id: newId,
+                  name: f.name,
+                  isOpen: true,
+                  type: f.type || 'business'
+              });
+              folderMap.set(f.name, newId);
+          }
+      });
+
+      // 2. Process APIs
+      data.apis?.forEach(a => {
+          const folderId = folderMap.get(a.folderName) || newFolders[0].id;
+          newApis.push({
+              id: `api-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+              name: a.name,
+              path: a.path,
+              method: a.method,
+              folderId: folderId,
+              dataSourceId: MOCK_DATA_SOURCES[0].id, // Default to first DS
+              status: 'draft',
+              sql: a.sql || '',
+              params: a.params || [],
+              config: { enablePagination: false, pageSize: 20, enableSorting: false },
+              preHooks: [],
+              postHooks: []
+          });
+      });
+
+      setFolders(newFolders);
+      setApis(newApis);
+  };
+
   const selectedApi = selectedApiId ? apis.find(a => a.id === selectedApiId) || null : null;
 
   return (
@@ -177,6 +223,7 @@ const ApiBuilder: React.FC = () => {
       <AIChatFloating 
         schema={MOCK_TABLES}
         onApplyCode={handleAiApplyCode}
+        onBatchCreate={handleAiBatchCreate}
         mode="SQL"
         selectedContext={editorSelection}
       />

@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Code, Save, RefreshCw, Smartphone, Monitor, Tablet, Check, Database, Link, Plus, X, Search, Image as ImageIcon, Upload, FileCode, FileType, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
@@ -13,7 +12,7 @@ interface CustomPageBuilderProps {
   onSave: (html: string) => void;
 }
 
-// HTML System Instruction (Legacy)
+// HTML System Instruction
 const HTML_SYSTEM_INSTRUCTION = `
 You are an expert UI/UX Frontend Developer specializing in Tailwind CSS.
 Your task is to generate specific "internal tool" or "dashboard" HTML pages.
@@ -28,7 +27,7 @@ Your task is to generate specific "internal tool" or "dashboard" HTML pages.
 - Make it look professional, clean, and dense (suitable for OPS tools).
 `;
 
-// React System Instruction (New)
+// React System Instruction
 const REACT_SYSTEM_INSTRUCTION = `
 You are an expert React Frontend Developer.
 Your task is to generate a **single, functional React Component** code for an internal tool or dashboard.
@@ -72,7 +71,7 @@ export default Dashboard;
 `;
 
 const CustomPageBuilder: React.FC<CustomPageBuilderProps> = ({ pageId, pageName, initialHtml, onSave }) => {
-  // Mode State - Defaults to HTML now
+  // Mode State - Defaults to HTML
   const [generationMode, setGenerationMode] = useState<'html' | 'react'>('html');
 
   // AI & Chat State
@@ -99,7 +98,7 @@ const CustomPageBuilder: React.FC<CustomPageBuilderProps> = ({ pageId, pageName,
   const scrollRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  // Initialize
+  // Initialize Messages
   useEffect(() => {
     if (messages.length === 0) {
       setMessages([{
@@ -110,6 +109,18 @@ const CustomPageBuilder: React.FC<CustomPageBuilderProps> = ({ pageId, pageName,
       }]);
     }
   }, [pageName]);
+
+  // Auto-detect mode from content
+  useEffect(() => {
+    if (initialHtml) {
+      if (initialHtml.includes('export default') || initialHtml.includes('import React')) {
+        setGenerationMode('react');
+      } else {
+        setGenerationMode('html');
+      }
+      setGeneratedCode(initialHtml);
+    }
+  }, [initialHtml]);
 
   // Scroll to bottom
   useEffect(() => {
@@ -370,7 +381,7 @@ const CustomPageBuilder: React.FC<CustomPageBuilderProps> = ({ pageId, pageName,
     <div className="flex h-full w-full bg-slate-100 overflow-hidden">
       
       {/* Left: Preview Area */}
-      <div className="flex-1 flex flex-col min-w-0 transition-all duration-300">
+      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out ${isSidebarOpen ? 'mr-0' : ''}`}>
         {/* Preview Toolbar */}
         <div className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4">
           <div className="flex items-center gap-4">
@@ -440,7 +451,7 @@ const CustomPageBuilder: React.FC<CustomPageBuilderProps> = ({ pageId, pageName,
                )}
              </button>
 
-             {/* Toggle Sidebar Button (Only visible when closed) */}
+             {/* Toggle Sidebar Button (Visible when closed) */}
              {!isSidebarOpen && (
                 <button 
                   onClick={() => setIsSidebarOpen(true)}
@@ -494,10 +505,13 @@ const CustomPageBuilder: React.FC<CustomPageBuilderProps> = ({ pageId, pageName,
         </div>
       </div>
 
-      {/* Right: AI Chat Sidebar */}
-      {isSidebarOpen && (
-        <div className="w-[350px] bg-white border-l border-slate-200 flex flex-col flex-shrink-0 shadow-xl z-10 transition-all">
-            <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+      {/* Right: AI Chat Sidebar (CSS Transition instead of Unmount) */}
+      <div 
+        className={`bg-white border-l border-slate-200 flex flex-col flex-shrink-0 shadow-xl z-10 transition-all duration-300 ease-in-out ${
+            isSidebarOpen ? 'w-[350px] opacity-100 translate-x-0' : 'w-0 opacity-0 translate-x-10 overflow-hidden border-l-0'
+        }`}
+      >
+            <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center min-w-[350px]">
             <div>
                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
                     <Bot className="w-5 h-5 text-indigo-600" />
@@ -515,7 +529,7 @@ const CustomPageBuilder: React.FC<CustomPageBuilderProps> = ({ pageId, pageName,
             </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50" ref={scrollRef}>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50 min-w-[350px]" ref={scrollRef}>
             {messages.map((msg) => (
                 <div key={msg.id} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                 <div className={`
@@ -563,7 +577,7 @@ const CustomPageBuilder: React.FC<CustomPageBuilderProps> = ({ pageId, pageName,
             </div>
 
             {/* Input Area */}
-            <div className="p-4 bg-white border-t border-slate-200 space-y-3">
+            <div className="p-4 bg-white border-t border-slate-200 space-y-3 min-w-[350px]">
             {/* Pending Image Preview */}
             {pendingImage && (
                 <div className="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg animate-in fade-in slide-in-from-bottom-2">
@@ -641,7 +655,6 @@ const CustomPageBuilder: React.FC<CustomPageBuilderProps> = ({ pageId, pageName,
             </div>
             </div>
         </div>
-      )}
       
       {/* Modals */}
       {renderApiModal()}

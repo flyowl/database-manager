@@ -38,20 +38,24 @@ export const SmartChartWidget: React.FC<{ config: ChartConfig }> = ({ config: in
   useEffect(() => {
     let newConfig = { ...initialConfig };
 
-    // Fix: If data exists but series is missing (common AI error), auto-generate series from keys
+    // Auto-generate series if missing
     if ((!newConfig.series || newConfig.series.length === 0) && newConfig.data && newConfig.data.length > 0) {
         const firstRow = newConfig.data[0];
-        // Exclude xAxisKey
+        // Exclude xAxisKey from series candidates
         const keys = Object.keys(firstRow).filter(k => k !== newConfig.xAxisKey);
         
         // Simple heuristic: try to pick numeric keys for series
-        const numericKeys = keys.filter(k => typeof firstRow[k] === 'number');
+        const numericKeys = keys.filter(k => {
+            const val = firstRow[k];
+            return typeof val === 'number' || (!isNaN(parseFloat(val)) && isFinite(val));
+        });
+        
         const finalKeys = numericKeys.length > 0 ? numericKeys : keys;
 
-        newConfig.series = finalKeys.map(k => ({
+        newConfig.series = finalKeys.map((k, idx) => ({
             dataKey: k,
-            name: k, // Capitalize or use key as name
-            color: undefined 
+            name: k,
+            color: COLORS[idx % COLORS.length]
         }));
     }
 
@@ -92,16 +96,24 @@ export const SmartChartWidget: React.FC<{ config: ChartConfig }> = ({ config: in
         );
     }
 
-    // Ensure series exists
     const seriesToRender = config.series || [];
     if (seriesToRender.length === 0) {
-         return (
-            <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                <AlertCircle className="w-8 h-8 mb-2 opacity-50" />
-                <span className="text-sm">无法解析图表数据系列</span>
-            </div>
-        );
+         // Fallback if series is still missing (should be caught by effect, but as safety)
+         const firstRow = config.data[0];
+         const fallbackKeys = Object.keys(firstRow).filter(k => k !== config.xAxisKey);
+         if(fallbackKeys.length === 0) {
+             return (
+                <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                    <AlertCircle className="w-8 h-8 mb-2 opacity-50" />
+                    <span className="text-sm">无法解析图表数据系列 (Series)</span>
+                </div>
+            );
+         }
     }
+
+    // Ensure we have something to render if series state is empty but keys exist
+    const activeSeries = seriesToRender.length > 0 ? seriesToRender : 
+        Object.keys(config.data[0]).filter(k => k !== config.xAxisKey).map((k, i) => ({ dataKey: k, name: k, color: COLORS[i % COLORS.length] }));
 
     const CommonAxis = [
         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" key="grid" />,
@@ -130,11 +142,11 @@ export const SmartChartWidget: React.FC<{ config: ChartConfig }> = ({ config: in
     ];
 
     return (
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer width="100%" height="100%" debounce={50}>
         {chartType === 'line' ? (
           <LineChart data={config.data} margin={{top: 10, right: 30, left: 0, bottom: 0}}>
             {CommonAxis}
-            {seriesToRender.map((s, i) => (
+            {activeSeries.map((s, i) => (
               <Line 
                 key={s.dataKey}
                 type="monotone" 
@@ -150,7 +162,7 @@ export const SmartChartWidget: React.FC<{ config: ChartConfig }> = ({ config: in
         ) : chartType === 'area' ? (
           <AreaChart data={config.data} margin={{top: 10, right: 30, left: 0, bottom: 0}}>
             {CommonAxis}
-            {seriesToRender.map((s, i) => (
+            {activeSeries.map((s, i) => (
               <Area 
                 key={s.dataKey}
                 type="monotone" 
@@ -173,7 +185,7 @@ export const SmartChartWidget: React.FC<{ config: ChartConfig }> = ({ config: in
               innerRadius={60}
               outerRadius={80}
               paddingAngle={5}
-              dataKey={seriesToRender[0].dataKey}
+              dataKey={activeSeries[0].dataKey}
               nameKey={config.xAxisKey}
             >
               {config.data.map((entry, index) => (
@@ -184,7 +196,7 @@ export const SmartChartWidget: React.FC<{ config: ChartConfig }> = ({ config: in
         ) : (
           <BarChart data={config.data} margin={{top: 10, right: 30, left: 0, bottom: 0}} barSize={32}>
             {CommonAxis}
-            {seriesToRender.map((s, i) => (
+            {activeSeries.map((s, i) => (
               <Bar 
                 key={s.dataKey}
                 dataKey={s.dataKey} 
@@ -216,7 +228,9 @@ export const SmartChartWidget: React.FC<{ config: ChartConfig }> = ({ config: in
       {isExpanded && <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9998]" onClick={toggleExpand} />}
       <div 
         ref={chartContainerRef}
-        className={`bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col transition-all duration-300 my-4 ${isExpanded ? 'h-screen' : 'h-[400px]'}`}
+        // Added font-sans and whitespace-normal to reset inherited <pre> styles from markdown
+        // Added w-full to ensure it takes up width
+        className={`bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col transition-all duration-300 my-4 font-sans whitespace-normal w-full ${isExpanded ? 'h-screen' : 'h-[400px]'}`}
         style={expandedStyle}
       >
         {/* Header */}

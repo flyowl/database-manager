@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
     Layout, 
     Server, 
@@ -8,22 +8,55 @@ import {
     Trash2, 
     Box, 
     HardDrive, 
-    Cpu, 
     Activity, 
     MoreVertical,
     FileText,
     Monitor,
-    Cloud,
     AlertCircle,
     CheckCircle,
     Construction,
     ChevronDown,
     ChevronRight,
-    Folder
+    Folder,
+    FolderOpen,
+    Settings,
+    Edit2,
+    FolderPlus,
+    Terminal,
+    Globe,
+    Shield,
+    BarChart2,
+    PieChart,
+    AlertTriangle,
+    Users,
+    Cloud,
+    Lock,
+    Zap,
+    Cpu
 } from 'lucide-react';
 import CustomPageBuilder from './ops/CustomPageBuilder';
 
 // --- Types & Mock Data ---
+
+// Define available icons for selection
+const AVAILABLE_ICONS = [
+    { name: 'Layout', icon: Layout },
+    { name: 'Server', icon: Server },
+    { name: 'Activity', icon: Activity },
+    { name: 'Terminal', icon: Terminal },
+    { name: 'Database', icon: Box }, // Using Box as generic DB/Container representation if Database exists use it
+    { name: 'Globe', icon: Globe },
+    { name: 'Shield', icon: Shield },
+    { name: 'BarChart', icon: BarChart2 },
+    { name: 'PieChart', icon: PieChart },
+    { name: 'FileText', icon: FileText },
+    { name: 'Alert', icon: AlertTriangle },
+    { name: 'Users', icon: Users },
+    { name: 'Cloud', icon: Cloud },
+    { name: 'Lock', icon: Lock },
+    { name: 'Zap', icon: Zap },
+    { name: 'Cpu', icon: Cpu },
+];
 
 interface ResourceMetric {
     total: number;
@@ -61,13 +94,23 @@ interface StorageVolume {
     iops: number;
 }
 
-// Tree Data Structure
+// Tree Data Structure for Business
 interface BusinessNode {
     id: string;
     name: string;
     type: 'dept' | 'biz';
     children?: BusinessNode[];
     status?: 'healthy' | 'warning' | 'critical'; // For business systems
+}
+
+// New Data Structure for Custom Navigation
+interface CustomNode {
+    id: string;
+    name: string;
+    type: 'page' | 'folder';
+    parentId?: string;
+    isOpen?: boolean;
+    icon?: string; // Icon name from AVAILABLE_ICONS
 }
 
 const MOCK_BIZ_TREE: BusinessNode[] = [
@@ -116,16 +159,36 @@ const MOCK_STORAGE: StorageVolume[] = [
 const OpsManager: React.FC = () => {
     // Navigation State
     const [activeNav, setActiveNav] = useState('business-module');
-    const [customPages, setCustomPages] = useState<{id: string, name: string}[]>([
-        { id: 'custom-1', name: '日常巡检' },
-        { id: 'custom-2', name: '值班排班表' }
+    
+    // Custom Nodes State (Folders + Pages)
+    const [customNodes, setCustomNodes] = useState<CustomNode[]>([
+        { id: 'folder-demo', name: '日常监控', type: 'folder', isOpen: true, icon: 'Activity' },
+        { id: 'custom-1', name: '巡检大盘', type: 'page', parentId: 'folder-demo', icon: 'BarChart' },
+        { id: 'custom-2', name: '值班排班表', type: 'page', icon: 'Users' }
     ]);
     
     // Store HTML content for each custom page
     const [customPagesContent, setCustomPagesContent] = useState<Record<string, string>>({});
 
-    const [isAddPageModalOpen, setIsAddPageModalOpen] = useState(false);
-    const [newPageName, setNewPageName] = useState('');
+    // UI States
+    const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+    const [activeItemDropdownId, setActiveItemDropdownId] = useState<string | null>(null);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+    const addMenuRef = useRef<HTMLDivElement>(null);
+
+    // Modal State
+    const [modalConfig, setModalConfig] = useState<{
+        isOpen: boolean;
+        type: 'createPage' | 'createFolder' | 'edit';
+        targetId?: string; 
+        initialName?: string;
+        initialParentId?: string;
+        initialIcon?: string;
+    }>({ isOpen: false, type: 'createPage' });
+
+    const [formName, setFormName] = useState('');
+    const [formParentId, setFormParentId] = useState<string>('');
+    const [formIcon, setFormIcon] = useState<string>('');
 
     // Business Module Tree State
     const [selectedBusinessId, setSelectedBusinessId] = useState<string>('biz-1');
@@ -135,27 +198,79 @@ const OpsManager: React.FC = () => {
     const [activeMainTab, setActiveMainTab] = useState<'details' | 'topology'>('details');
     const [activeDetailSubTab, setActiveDetailSubTab] = useState<'server' | 'vm' | 'storage'>('server');
 
+    // Click outside handler
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setActiveItemDropdownId(null);
+            }
+            if (addMenuRef.current && !addMenuRef.current.contains(event.target as Node)) {
+                setIsAddMenuOpen(false);
+            }
+        };
+        document.addEventListener('click', handleClickOutside);
+        return () => document.removeEventListener('click', handleClickOutside);
+    }, []);
+
     // --- Handlers ---
-    const handleAddPage = () => {
-        if (!newPageName.trim()) return;
-        const newPage = { id: `custom-${Date.now()}`, name: newPageName };
-        setCustomPages([...customPages, newPage]);
-        setNewPageName('');
-        setIsAddPageModalOpen(false);
-        setActiveNav(newPage.id);
+
+    const openModal = (type: 'createPage' | 'createFolder' | 'edit', node?: CustomNode) => {
+        setModalConfig({
+            isOpen: true,
+            type,
+            targetId: node?.id,
+            initialName: node?.name,
+            initialParentId: node?.parentId,
+            initialIcon: node?.icon
+        });
+        setFormName(node?.name || '');
+        setFormParentId(node?.parentId || '');
+        setFormIcon(node?.icon || '');
+        setIsAddMenuOpen(false);
+        setActiveItemDropdownId(null);
     };
 
-    const handleDeletePage = (id: string, e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (confirm('确认删除此自定义页面吗？')) {
-            const newPages = customPages.filter(p => p.id !== id);
-            setCustomPages(newPages);
+    const handleModalSubmit = () => {
+        if (!formName.trim()) return;
+
+        if (modalConfig.type === 'createPage' || modalConfig.type === 'createFolder') {
+            const newNode: CustomNode = {
+                id: `${modalConfig.type === 'createFolder' ? 'folder' : 'custom'}-${Date.now()}`,
+                name: formName,
+                type: modalConfig.type === 'createFolder' ? 'folder' : 'page',
+                parentId: formParentId || undefined,
+                isOpen: true,
+                icon: formIcon || undefined
+            };
+            setCustomNodes([...customNodes, newNode]);
+            if (newNode.type === 'page') setActiveNav(newNode.id);
+        } else if (modalConfig.type === 'edit' && modalConfig.targetId) {
+            setCustomNodes(prev => prev.map(n => n.id === modalConfig.targetId ? {
+                ...n,
+                name: formName,
+                parentId: formParentId || undefined,
+                icon: formIcon || undefined
+            } : n));
+        }
+        setModalConfig(prev => ({ ...prev, isOpen: false }));
+    };
+
+    const handleDelete = (id: string) => {
+        if (confirm('确认删除此项吗？如果是目录，其下所有内容也将被删除。')) {
+            const idsToDelete = new Set([id]);
+            // Find all children recursively (simple depth)
+            customNodes.forEach(n => { if (n.parentId === id) idsToDelete.add(n.id); });
+            
+            setCustomNodes(prev => prev.filter(n => !idsToDelete.has(n.id)));
+            
+            // Clean up content
             const newContent = { ...customPagesContent };
-            delete newContent[id];
+            idsToDelete.forEach(i => delete newContent[i]);
             setCustomPagesContent(newContent);
             
-            if (activeNav === id) setActiveNav('business-module');
+            if (activeNav === id || idsToDelete.has(activeNav)) setActiveNav('business-module');
         }
+        setActiveItemDropdownId(null);
     };
 
     const handleSaveCustomPage = (pageId: string, html: string) => {
@@ -169,7 +284,19 @@ const OpsManager: React.FC = () => {
         setExpandedDepts(prev => prev.includes(id) ? prev.filter(d => d !== id) : [...prev, id]);
     };
 
+    const toggleCustomFolder = (id: string) => {
+        setCustomNodes(prev => prev.map(n => n.id === id ? { ...n, isOpen: !n.isOpen } : n));
+    };
+
     // --- Render Helpers ---
+
+    const renderCustomIcon = (iconName?: string, className?: string) => {
+        if (!iconName) return null;
+        const iconData = AVAILABLE_ICONS.find(i => i.name === iconName);
+        const Icon = iconData ? iconData.icon : null;
+        if (!Icon) return null;
+        return <Icon className={className} />;
+    };
 
     const renderStatusBadge = (status: string) => {
         const styles = {
@@ -193,6 +320,86 @@ const OpsManager: React.FC = () => {
             <div className={`h-full ${colorClass} transition-all duration-500`} style={{ width: `${value}%` }}></div>
         </div>
     );
+
+    const renderCustomNavTree = (parentId?: string, depth = 0) => {
+        const nodes = customNodes.filter(n => n.parentId === parentId);
+        
+        return nodes.map(node => {
+            const hasCustomIcon = !!node.icon;
+            
+            return (
+            <div key={node.id}>
+                <div 
+                    className={`group flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium cursor-pointer transition-all mb-0.5 ${
+                        activeNav === node.id 
+                        ? 'bg-slate-800 text-white' 
+                        : 'hover:bg-slate-800/50 hover:text-slate-200 text-slate-400'
+                    }`}
+                    style={{ paddingLeft: `${depth * 12 + 12}px` }}
+                    onClick={() => {
+                        if (node.type === 'folder') toggleCustomFolder(node.id);
+                        else setActiveNav(node.id);
+                    }}
+                >
+                    <div className="flex items-center gap-2 overflow-hidden flex-1">
+                        {node.type === 'folder' ? (
+                            <span className="text-slate-500 group-hover:text-slate-300 transition-colors">
+                                {node.isOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                            </span>
+                        ) : null}
+                        
+                        {/* Icon Rendering Logic */}
+                        {hasCustomIcon ? (
+                            // Render custom icon
+                            <div className={`${activeNav === node.id ? 'text-blue-400' : (node.type === 'folder' && node.isOpen ? 'text-blue-400' : 'text-slate-500 group-hover:text-slate-300')}`}>
+                                {renderCustomIcon(node.icon, "w-3.5 h-3.5")}
+                            </div>
+                        ) : (
+                            // Render default icon
+                            node.type === 'folder' ? (
+                                node.isOpen ? <FolderOpen className="w-3.5 h-3.5 text-blue-400" /> : <Folder className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-300" />
+                            ) : (
+                                <FileText className={`w-3.5 h-3.5 flex-shrink-0 ${activeNav === node.id ? 'text-blue-400' : 'text-slate-500'}`} />
+                            )
+                        )}
+                        <span className="truncate">{node.name}</span>
+                    </div>
+                    
+                    <div className="relative">
+                        <button 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveItemDropdownId(activeItemDropdownId === node.id ? null : node.id);
+                            }}
+                            className={`p-1 rounded hover:bg-slate-700 transition-all ${activeItemDropdownId === node.id ? 'opacity-100 text-white' : 'opacity-0 group-hover:opacity-100 text-slate-500'}`}
+                        >
+                            <Settings className="w-3.5 h-3.5" />
+                        </button>
+                        
+                        {activeItemDropdownId === node.id && (
+                            <div ref={dropdownRef} className="absolute right-0 top-full mt-1 w-28 bg-white rounded-lg shadow-xl py-1 z-50 text-slate-700 animate-in fade-in zoom-in-95 duration-100 border border-slate-200">
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); openModal('edit', node); }}
+                                    className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 flex items-center gap-2 text-slate-600 hover:text-blue-600"
+                                >
+                                    <Edit2 className="w-3.5 h-3.5" /> 编辑设置
+                                </button>
+                                <div className="h-px bg-slate-100 my-0.5"></div>
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); handleDelete(node.id); }}
+                                    className="w-full text-left px-3 py-2 text-xs hover:bg-red-50 text-red-600 flex items-center gap-2"
+                                >
+                                    <Trash2 className="w-3.5 h-3.5" /> 删除
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+                {node.type === 'folder' && node.isOpen && renderCustomNavTree(node.id, depth + 1)}
+            </div>
+            );
+        });
+    };
 
     const renderBusinessModuleContent = () => {
         // Find selected business details
@@ -471,7 +678,8 @@ const OpsManager: React.FC = () => {
     };
 
     const renderCustomPage = (pageId: string) => {
-        const pageName = customPages.find(p => p.id === pageId)?.name || '未命名页面';
+        const page = customNodes.find(p => p.id === pageId);
+        const pageName = page?.name || '未命名页面';
         return (
             <CustomPageBuilder 
                 key={pageId}
@@ -481,6 +689,10 @@ const OpsManager: React.FC = () => {
                 onSave={(html) => handleSaveCustomPage(pageId, html)}
             />
         );
+    };
+
+    const getFolderOptions = () => {
+        return customNodes.filter(n => n.type === 'folder');
     };
 
     return (
@@ -511,40 +723,39 @@ const OpsManager: React.FC = () => {
 
                 {/* Custom Navigation */}
                 <div className="p-3 flex-1 overflow-y-auto">
-                    <div className="flex items-center justify-between px-3 mb-2">
+                    <div className="flex items-center justify-between px-3 mb-2 relative">
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">自定义页面</span>
-                        <button 
-                            onClick={() => setIsAddPageModalOpen(true)}
-                            className="text-slate-500 hover:text-white transition-colors"
-                            title="添加自定义页面"
-                        >
-                            <Plus className="w-3.5 h-3.5" />
-                        </button>
+                        
+                        <div ref={addMenuRef} className="relative">
+                            <button 
+                                onClick={() => setIsAddMenuOpen(!isAddMenuOpen)}
+                                className="text-slate-500 hover:text-white transition-colors"
+                                title="添加..."
+                            >
+                                <Plus className="w-3.5 h-3.5" />
+                            </button>
+                            
+                            {isAddMenuOpen && (
+                                <div className="absolute right-0 top-full mt-1 w-32 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                                    <button 
+                                        onClick={() => openModal('createFolder')}
+                                        className="w-full text-left px-3 py-2 text-xs text-slate-300 hover:bg-slate-700 hover:text-white flex items-center gap-2"
+                                    >
+                                        <FolderPlus className="w-3.5 h-3.5" /> 新建目录
+                                    </button>
+                                    <button 
+                                        onClick={() => openModal('createPage')}
+                                        className="w-full text-left px-3 py-2 text-xs text-slate-300 hover:bg-slate-700 hover:text-white flex items-center gap-2"
+                                    >
+                                        <FileText className="w-3.5 h-3.5" /> 新建页面
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
                     
                     <div className="space-y-1">
-                        {customPages.map(page => (
-                            <div 
-                                key={page.id}
-                                onClick={() => setActiveNav(page.id)}
-                                className={`group flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer transition-all ${
-                                    activeNav === page.id 
-                                    ? 'bg-slate-800 text-white border-l-4 border-blue-500' 
-                                    : 'hover:bg-slate-800/50 hover:text-slate-200 border-l-4 border-transparent'
-                                }`}
-                            >
-                                <div className="flex items-center gap-3 overflow-hidden">
-                                    <FileText className={`w-4 h-4 flex-shrink-0 ${activeNav === page.id ? 'text-blue-400' : 'text-slate-500'}`} />
-                                    <span className="truncate">{page.name}</span>
-                                </div>
-                                <button 
-                                    onClick={(e) => handleDeletePage(page.id, e)}
-                                    className="text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity p-1"
-                                >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                            </div>
-                        ))}
+                        {renderCustomNavTree()}
                     </div>
                 </div>
 
@@ -563,32 +774,98 @@ const OpsManager: React.FC = () => {
                 )}
             </div>
 
-            {/* Add Page Modal */}
-            {isAddPageModalOpen && (
+            {/* Config Modal (Create/Edit) */}
+            {modalConfig.isOpen && (
                 <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-[2px] z-[100] flex items-center justify-center">
-                    <div className="bg-white rounded-xl shadow-2xl w-96 p-6 animate-in zoom-in-95 duration-200">
-                        <h3 className="text-lg font-bold text-slate-800 mb-4">添加自定义页面</h3>
-                        <input 
-                            type="text" 
-                            placeholder="页面名称" 
-                            value={newPageName}
-                            onChange={(e) => setNewPageName(e.target.value)}
-                            className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm mb-6 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-50"
-                            autoFocus
-                        />
-                        <div className="flex justify-end gap-3">
+                    <div className="bg-white rounded-xl shadow-2xl w-[400px] p-6 animate-in zoom-in-95 duration-200">
+                        <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                            {modalConfig.type === 'edit' ? <Edit2 className="w-5 h-5 text-blue-600"/> : <Plus className="w-5 h-5 text-blue-600"/>}
+                            {modalConfig.type === 'createPage' && '新建自定义页面'}
+                            {modalConfig.type === 'createFolder' && '新建目录'}
+                            {modalConfig.type === 'edit' && '编辑项目'}
+                        </h3>
+                        
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">名称</label>
+                                <input 
+                                    type="text" 
+                                    value={formName}
+                                    onChange={(e) => setFormName(e.target.value)}
+                                    className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                    placeholder="例如: 监控大盘"
+                                    autoFocus
+                                />
+                            </div>
+
+                            {(modalConfig.type === 'createPage' || (modalConfig.type === 'edit')) && (
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">所属目录</label>
+                                    <div className="relative">
+                                        <select 
+                                            value={formParentId}
+                                            onChange={(e) => setFormParentId(e.target.value)}
+                                            className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 appearance-none"
+                                        >
+                                            <option value="">(根目录)</option>
+                                            {getFolderOptions()
+                                                .filter(f => f.id !== modalConfig.targetId) // Prevent selecting self as parent
+                                                .map(folder => (
+                                                <option key={folder.id} value={folder.id}>📁 {folder.name}</option>
+                                            ))}
+                                        </select>
+                                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                                    </div>
+                                </div>
+                            )}
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">选择图标</label>
+                                <div className="grid grid-cols-6 gap-2 bg-slate-50 p-2 rounded-lg border border-slate-200 max-h-32 overflow-y-auto">
+                                    <button 
+                                        type="button"
+                                        onClick={() => setFormIcon('')}
+                                        className={`p-2 rounded flex items-center justify-center transition-all ${
+                                            formIcon === '' 
+                                            ? 'bg-white border border-blue-500 text-blue-600 shadow-sm' 
+                                            : 'text-slate-400 hover:bg-white hover:text-slate-600 border border-transparent'
+                                        }`}
+                                        title="默认"
+                                    >
+                                        <span className="text-[10px] font-bold">Def</span>
+                                    </button>
+                                    {AVAILABLE_ICONS.map((item) => (
+                                        <button 
+                                            key={item.name}
+                                            type="button"
+                                            onClick={() => setFormIcon(item.name)}
+                                            className={`p-2 rounded flex items-center justify-center transition-all ${
+                                                formIcon === item.name 
+                                                ? 'bg-white border border-blue-500 text-blue-600 shadow-sm' 
+                                                : 'text-slate-500 hover:bg-white hover:text-slate-700 border border-transparent'
+                                            }`}
+                                            title={item.name}
+                                        >
+                                            <item.icon className="w-4 h-4" />
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-3 mt-6">
                             <button 
-                                onClick={() => setIsAddPageModalOpen(false)}
+                                onClick={() => setModalConfig({...modalConfig, isOpen: false})}
                                 className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-medium transition-colors"
                             >
                                 取消
                             </button>
                             <button 
-                                onClick={handleAddPage}
-                                disabled={!newPageName.trim()}
+                                onClick={handleModalSubmit}
+                                disabled={!formName.trim()}
                                 className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
                             >
-                                确认添加
+                                确认
                             </button>
                         </div>
                     </div>

@@ -1,9 +1,9 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Plus, MessageSquare, Trash2, Bot, User, Sparkles, Search, MoreHorizontal, Edit2, Copy } from 'lucide-react';
-import { ChatMessage } from '../types';
+import { Send, Plus, MessageSquare, Trash2, Bot, User, Sparkles, Search, MoreHorizontal, Edit2, Copy, Database, Layers, Check, X, ChevronRight, ChevronDown, Table as TableIcon } from 'lucide-react';
+import { ChatMessage, DatabaseModule } from '../types';
 import { generateAIResponseStream } from '../services/aiService';
-import { MOCK_TABLES } from '../data/mockData';
+import { MOCK_TABLES, MOCK_MODULES, MOCK_DATA_SOURCES } from '../data/mockData';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { SmartChartWidget } from '../components/chart/SmartChartWidget';
@@ -22,16 +22,166 @@ const MOCK_SESSIONS: Session[] = [
         date: new Date(),
         messages: [
             { id: '1', role: 'user', content: '分析一下过去 24 小时的服务器 CPU 负载趋势', timestamp: new Date() },
-            { id: '2', role: 'model', content: '好的，根据监控数据，web-prod 服务器组在下午 14:00-16:00 出现负载高峰。\n\n```json:chart\n{\n  "type": "line",\n  "title": "CPU 负载趋势 (Web Cluster)",\n  "data": [\n    { "time": "08:00", "web-01": 25, "web-02": 22 },\n    { "time": "10:00", "web-01": 45, "web-02": 40 },\n    { "time": "12:00", "web-01": 55, "web-02": 52 },\n    { "time": "14:00", "web-01": 85, "web-02": 80 },\n    { "time": "16:00", "web-01": 70, "web-02": 68 },\n    { "time": "18:00", "web-01": 40, "web-02": 38 }\n  ],\n  "xAxisKey": "time",\n  "sql": "SELECT time_bucket(\'2 hours\', time) as time, avg(cpu) FROM metrics WHERE host LIKE \'web%\' GROUP BY 1",\n  "series": [\n    { "dataKey": "web-01", "name": "web-01 CPU%", "color": "#6366f1" },\n    { "dataKey": "web-02", "name": "web-02 CPU%", "color": "#10b981" }\n  ]\n}\n```', timestamp: new Date() }
+            { id: '2', role: 'model', content: '好的，根据监控数据，web-prod 服务器组在下午 14:00-16:00 出现负载高峰。\n\n```json:chart\n{\n  "type": "line",\n  "title": "CPU 负载趋势 (Web Cluster)",\n  "xAxisKey": "time",\n  "data": [\n    { "time": "08:00", "web01": 25, "web02": 22 },\n    { "time": "10:00", "web01": 45, "web02": 40 },\n    { "time": "12:00", "web01": 55, "web02": 52 },\n    { "time": "14:00", "web01": 85, "web02": 80 },\n    { "time": "16:00", "web01": 70, "web02": 68 },\n    { "time": "18:00", "web01": 40, "web02": 38 }\n  ],\n  "sql": "SELECT time_bucket(\'2 hours\', time) as time, avg(cpu) FROM metrics WHERE host LIKE \'web%\' GROUP BY 1",\n  "series": [\n    { "dataKey": "web01", "name": "web-01 CPU%", "color": "#6366f1" },\n    { "dataKey": "web02", "name": "web-02 CPU%", "color": "#10b981" }\n  ]\n}\n```', timestamp: new Date() }
         ]
     }
 ];
+
+// --- Context Modal Component ---
+interface ContextModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    selectedModules: Set<string>;
+    onConfirm: (ids: Set<string>) => void;
+}
+
+const ContextModal: React.FC<ContextModalProps> = ({ isOpen, onClose, selectedModules, onConfirm }) => {
+    const [tempSelected, setTempSelected] = useState<Set<string>>(new Set(selectedModules));
+    const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
+
+    useEffect(() => {
+        if(isOpen) setTempSelected(new Set(selectedModules));
+    }, [isOpen, selectedModules]);
+
+    if (!isOpen) return null;
+
+    const toggleModule = (id: string) => {
+        const newSet = new Set(tempSelected);
+        if (newSet.has(id)) newSet.delete(id);
+        else newSet.add(id);
+        setTempSelected(newSet);
+    };
+
+    const toggleExpand = (id: string) => {
+        const newSet = new Set(expandedModules);
+        if (newSet.has(id)) newSet.delete(id);
+        else newSet.add(id);
+        setExpandedModules(newSet);
+    };
+
+    const handleConfirm = () => {
+        onConfirm(tempSelected);
+        onClose();
+    };
+
+    // Group tables by module for display
+    const getModuleTables = (module: DatabaseModule) => {
+        return MOCK_TABLES.filter(t => module.tableIds.includes(t.id));
+    };
+
+    return (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-[100] flex items-center justify-center">
+            <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-[600px] h-[500px] flex flex-col animate-in fade-in zoom-in-95 duration-200">
+                <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-xl">
+                    <h3 className="font-bold text-slate-700 flex items-center gap-2">
+                        <Database className="w-5 h-5 text-indigo-600" />
+                        选择对话上下文 (Context)
+                    </h3>
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-xs text-blue-700 mb-2">
+                        💡 选择相关的业务模块，AI 将仅基于选中的表结构回答问题，以提高准确率。
+                    </div>
+
+                    {/* Mock Tree Structure: Data Source -> Modules -> Tables */}
+                    <div className="border border-slate-200 rounded-lg overflow-hidden">
+                        {MOCK_DATA_SOURCES.filter(ds => ds.isDefault).map(ds => (
+                            <div key={ds.id} className="bg-slate-50/50">
+                                <div className="px-4 py-2 bg-slate-100 border-b border-slate-200 font-bold text-slate-700 text-xs flex items-center gap-2">
+                                    <Database className="w-3.5 h-3.5 text-blue-500" />
+                                    {ds.name} (Primary)
+                                </div>
+                                
+                                <div className="divide-y divide-slate-100 bg-white">
+                                    {MOCK_MODULES.map(mod => {
+                                        const isSelected = tempSelected.has(mod.id);
+                                        const isExpanded = expandedModules.has(mod.id);
+                                        const tables = getModuleTables(mod);
+
+                                        return (
+                                            <div key={mod.id} className="flex flex-col">
+                                                <div 
+                                                    className={`flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors cursor-pointer ${isSelected ? 'bg-indigo-50/30' : ''}`}
+                                                    onClick={() => toggleExpand(mod.id)}
+                                                >
+                                                    <div 
+                                                        className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 cursor-pointer transition-colors ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-slate-300'}`}
+                                                        onClick={(e) => { e.stopPropagation(); toggleModule(mod.id); }}
+                                                    >
+                                                        {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
+                                                    </div>
+                                                    
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center gap-2">
+                                                            <Layers className="w-4 h-4 text-slate-500" />
+                                                            <span className="font-medium text-sm text-slate-700">{mod.name}</span>
+                                                        </div>
+                                                        <div className="text-xs text-slate-400 mt-0.5 ml-6">{mod.description}</div>
+                                                    </div>
+
+                                                    <button className="text-slate-400">
+                                                        {isExpanded ? <ChevronDown className="w-4 h-4"/> : <ChevronRight className="w-4 h-4"/>}
+                                                    </button>
+                                                </div>
+
+                                                {/* Tables List */}
+                                                {isExpanded && (
+                                                    <div className="px-4 pb-3 pt-1 pl-12 bg-slate-50/50 space-y-1 border-t border-slate-50 border-b">
+                                                        {tables.map(table => (
+                                                            <div key={table.id} className="flex items-center gap-2 text-xs text-slate-600 py-1">
+                                                                <TableIcon className="w-3 h-3 text-slate-400" />
+                                                                <span className="font-mono">{table.name}</span>
+                                                                {table.cnName && <span className="text-slate-400">({table.cnName})</span>}
+                                                            </div>
+                                                        ))}
+                                                        {tables.length === 0 && <span className="text-xs text-slate-400 italic">空模块</span>}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="px-5 py-4 border-t border-slate-100 bg-slate-50 rounded-b-xl flex justify-between items-center">
+                    <span className="text-xs text-slate-500">已选 {tempSelected.size} 个模块</span>
+                    <div className="flex gap-2">
+                        <button 
+                            onClick={onClose}
+                            className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+                        >
+                            取消
+                        </button>
+                        <button 
+                            onClick={handleConfirm}
+                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm"
+                        >
+                            确认应用
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const SmartQuery: React.FC = () => {
   const [sessions, setSessions] = useState<Session[]>(MOCK_SESSIONS);
   const [activeSessionId, setActiveSessionId] = useState<string>(MOCK_SESSIONS[0].id);
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // Context State
+  const [isContextModalOpen, setIsContextModalOpen] = useState(false);
+  const [selectedModuleIds, setSelectedModuleIds] = useState<Set<string>>(new Set());
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -65,6 +215,22 @@ const SmartQuery: React.FC = () => {
       }
   };
 
+  const getActiveSchema = () => {
+      // If no modules selected, return ALL tables (Default behavior)
+      if (selectedModuleIds.size === 0) return MOCK_TABLES;
+
+      // Collect all table IDs from selected modules
+      const activeTableIds = new Set<string>();
+      MOCK_MODULES.forEach(mod => {
+          if (selectedModuleIds.has(mod.id)) {
+              mod.tableIds.forEach(id => activeTableIds.add(id));
+          }
+      });
+
+      // Filter global tables based on active IDs
+      return MOCK_TABLES.filter(t => activeTableIds.has(t.id));
+  };
+
   const handleSend = async () => {
     if (!input.trim() || isProcessing) return;
 
@@ -92,7 +258,9 @@ const SmartQuery: React.FC = () => {
     setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: currentMessages } : s));
 
     try {
-        const stream = generateAIResponseStream(updatedMessages, userMsg.content, MOCK_TABLES);
+        // Use filtered schema based on context
+        const contextSchema = getActiveSchema();
+        const stream = generateAIResponseStream(updatedMessages, userMsg.content, contextSchema);
         let fullText = '';
         
         for await (const chunk of stream) {
@@ -133,6 +301,10 @@ const SmartQuery: React.FC = () => {
 
   // --- Markdown Components Config ---
   const MarkdownComponents = {
+      // IMPORTANT: Override 'pre' to remove the outer <pre> wrapper that react-markdown adds.
+      // This ensures SmartChartWidget and our custom code block (which has its own pre) render correctly in the flow.
+      pre: ({ children }: any) => <>{children}</>,
+      
       code({ node, inline, className, children, ...props }: any) {
           const match = /language-(\w+)(:(\w+))?/.exec(className || '');
           const lang = match ? match[1] : '';
@@ -377,13 +549,39 @@ const SmartQuery: React.FC = () => {
           <div className="p-6 bg-white pt-2 border-t border-slate-50 flex-shrink-0">
               <div className="max-w-4xl mx-auto">
                   <div className="relative shadow-lg rounded-2xl bg-white border border-slate-200 focus-within:ring-2 focus-within:ring-indigo-100 focus-within:border-indigo-400 transition-all">
+                      
+                      {/* Context Selection - Top Left */}
+                      <div className="absolute top-2 left-2 z-10">
+                          <button
+                              onClick={() => setIsContextModalOpen(true)}
+                              className={`
+                                  flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all border
+                                  ${selectedModuleIds.size > 0 
+                                      ? 'bg-indigo-50 text-indigo-700 border-indigo-100 hover:bg-indigo-100' 
+                                      : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 hover:text-slate-700'}
+                              `}
+                          >
+                              <Database className="w-3.5 h-3.5" />
+                              <span>
+                                  {selectedModuleIds.size > 0 
+                                      ? `已关联 ${selectedModuleIds.size} 个业务模块` 
+                                      : '配置数据上下文'}
+                              </span>
+                              {selectedModuleIds.size > 0 ? (
+                                   <ChevronDown className="w-3 h-3 opacity-50" />
+                              ) : (
+                                   <Plus className="w-3 h-3 opacity-50" />
+                              )}
+                          </button>
+                      </div>
+
                       <textarea
                         ref={inputRef}
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder="输入您的问题 (例如: 统计本月告警数量)..."
-                        className="w-full pl-5 pr-14 py-4 bg-transparent border-none focus:ring-0 text-slate-700 resize-none max-h-40 min-h-[60px]"
+                        placeholder={selectedModuleIds.size > 0 ? "基于选定的业务模块提问..." : "输入您的问题 (例如: 统计本月告警数量)..."}
+                        className="w-full pl-4 pr-14 pb-4 pt-12 bg-transparent border-none focus:ring-0 text-slate-700 resize-none max-h-40 min-h-[100px]"
                         rows={1}
                       />
                       <div className="absolute right-2 bottom-2">
@@ -406,6 +604,13 @@ const SmartQuery: React.FC = () => {
               </div>
           </div>
       </div>
+
+      <ContextModal 
+          isOpen={isContextModalOpen}
+          onClose={() => setIsContextModalOpen(false)}
+          selectedModules={selectedModuleIds}
+          onConfirm={setSelectedModuleIds}
+      />
     </div>
   );
 };
